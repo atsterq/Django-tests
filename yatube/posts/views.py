@@ -2,7 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404, redirect, render
 from posts.forms import CommentForm, PostForm
-from posts.models import Comment, Group, Post
+from posts.models import Comment, Follow, Group, Post
 from posts.paginator import paginator
 
 
@@ -27,9 +27,11 @@ def group_posts(request, slug):
 def profile(request, username):
     user = get_object_or_404(User, username=username)
     post_list = user.posts.all()
+    following = user.following.exists()
     context = {
         "author": user,
         "page_obj": paginator(request, post_list),
+        "following": following,
     }
     return render(request, "posts/profile.html", context)
 
@@ -90,3 +92,31 @@ def add_comment(request, post_id):
         comment.post = post
         comment.save()
     return redirect("posts:post_detail", post_id=post_id)
+
+
+@login_required
+def follow_index(request):
+    follower = Follow.objects.filter(user=request.user).values_list(
+        "author_id", flat=True
+    )
+    posts_list = Post.objects.filter(author_id__in=follower)
+    context = {
+        "page_obj": paginator(request, posts_list),
+        "title": "Избранные посты",
+    }
+    return render(request, "posts/follow.html", context)
+
+
+@login_required
+def profile_follow(request, username):
+    author = get_object_or_404(User, username=username)
+    if author != request.user:
+        Follow.objects.get_or_create(user=request.user, author=author)
+    return redirect("posts:follow_index")
+
+
+@login_required
+def profile_unfollow(request, username):
+    author = get_object_or_404(User, username=username)
+    Follow.objects.get(user=request.user, author=author).delete()
+    return redirect("posts:follow_index")
