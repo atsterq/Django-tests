@@ -8,7 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from ..models import Group, Post
+from ..models import Comment, Group, Post
 
 User = get_user_model()
 
@@ -42,6 +42,10 @@ class PostViewsTests(TestCase):
             group=cls.group,
             text="Тестовый пост",
             image=cls.uploaded,
+        )
+        cls.comment = Comment.objects.create(
+            author=cls.user,
+            text="Тестовый комментарий",
         )
 
     @classmethod
@@ -169,14 +173,14 @@ class PostViewsTests(TestCase):
         new_group = Group.objects.create(
             title="Тестовая группа 2", slug="test_slug2"
         )
-        response_group = self.authorized_client.get(
+        response = self.authorized_client.get(
             reverse("posts:group_list", kwargs={"slug": new_group.slug})
         )
-        group = response_group.context["page_obj"]
-        self.assertNotIn(self.post, group)
+        context = response.context["page_obj"].object_list
+        self.assertNotIn(self.post, context)
 
-    def test_image_in_context(self):
-        """Изображение передаётся в словаре context."""
+    def test_image_in_index_profile_group_list_context(self):
+        """Изображение передаётся на страницы группы, профиля и главной."""
         templates = (
             reverse("posts:index"),
             reverse("posts:profile", kwargs={"username": self.post.author}),
@@ -189,7 +193,7 @@ class PostViewsTests(TestCase):
                 self.assertEqual(obj.image, self.post.image)
 
     def test_image_in_post_detail_page(self):
-        """Картинка передается на страницу post_detail."""
+        """Изображение передается на страницу post_detail."""
         response = self.guest_client.get(
             reverse("posts:post_detail", kwargs={"post_id": self.post.id})
         )
@@ -197,11 +201,17 @@ class PostViewsTests(TestCase):
         self.assertEqual(obj.image, self.post.image)
 
     def test_image_in_page(self):
-        """Проверяем что пост с картинкой создается в БД"""
+        """Проверяем что пост с картинкой создается в БД."""
         self.assertTrue(
             Post.objects.filter(
                 text="Тестовый пост", image="posts/small.gif"
             ).exists()
+        )
+
+    def test_comments(self):
+        """Проверяем что комментарий появляется."""
+        self.assertTrue(
+            Comment.objects.filter(text=self.comment.text).exists()
         )
 
 
