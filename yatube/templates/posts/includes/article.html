@@ -1,3 +1,4 @@
+{% load thumbnail %}
 <article>
   <ul>
     {% if show_author %}
@@ -10,6 +11,9 @@
       Дата публикации: {{ post.pub_date|date:"d E Y" }}
     </li>
   </ul>
+  {% thumbnail post.image "960x339" crop="center" upscale=True as im %}
+    <img class="card-img my-2" src="{{ im.url }}">
+  {% endthumbnail %}
   <p>{{ post.text }}</p>
   <a href="{% url 'posts:post_detail' post.id %}">подробная информация</a>
   <br>

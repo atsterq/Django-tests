@@ -1,4 +1,5 @@
 /yatube/static
+/yatube/media
 
 .pre-commit-config.yaml
 

@@ -1,13 +1,20 @@
-from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
-from django.urls import reverse
+import shutil
+import tempfile
 from http import HTTPStatus
 
-from ..models import Post, Group
+from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import Client, TestCase, override_settings
+from django.urls import reverse
+
+from ..models import Group, Post
 
 User = get_user_model()
 
+TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
+
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class PostFormTests(TestCase):
     def setUp(self):
         self.guest_client = Client()
@@ -15,8 +22,9 @@ class PostFormTests(TestCase):
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
         self.group = Group.objects.create(
-            title="Тестовая группа", slug="test-slug",
-            description="Тестовое описание"
+            title="Тестовая группа",
+            slug="test-slug",
+            description="Тестовое описание",
         )
 
     def test_create_post(self):
@@ -33,7 +41,8 @@ class PostFormTests(TestCase):
         self.assertTrue(
             Post.objects.filter(
                 text="Текст записанный в форму",
-                group=self.group.id, author=self.user
+                group=self.group.id,
+                author=self.user,
             ).exists()
         )
         self.assertEqual(Post.objects.count(), posts_count + 1)
@@ -47,8 +56,10 @@ class PostFormTests(TestCase):
         self.group2 = Group.objects.create(
             title="Тестовая группа2", slug="test-group", description="Описание"
         )
-        form_data = {"text": "Текст записанный в форму",
-                     "group": self.group2.id}
+        form_data = {
+            "text": "Текст записанный в форму",
+            "group": self.group2.id,
+        }
         response = self.authorized_client.post(
             reverse("posts:post_edit", kwargs={"post_id": old_text.id}),
             data=form_data,
@@ -58,8 +69,9 @@ class PostFormTests(TestCase):
         error_name1 = "Данные поста не совпадают"
         self.assertTrue(
             Post.objects.filter(
-                group=self.group2.id, author=self.user,
-                pub_date=self.post.pub_date
+                group=self.group2.id,
+                author=self.user,
+                pub_date=self.post.pub_date,
             ).exists(),
             error_name1,
         )
@@ -93,14 +105,17 @@ class PostFormTests(TestCase):
             follow=True,
         )
         self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertRedirects(response,
-                             f"/auth/login/?next=/posts/{self.post.id}/edit/")
+        self.assertRedirects(
+            response, f"/auth/login/?next=/posts/{self.post.id}/edit/"
+        )
 
     def test_edit_post_forbidden_for_no_auth_user(self):
         """Проверка запрета редактирования не авторизованного пользователя."""
         posts_count = Post.objects.count()
-        form_data = {"text": "Текст записанный в форму",
-                     "group": self.group.id}
+        form_data = {
+            "text": "Текст записанный в форму",
+            "group": self.group.id,
+        }
         response = self.guest_client.post(
             reverse("posts:post_create"), data=form_data, follow=True
         )
