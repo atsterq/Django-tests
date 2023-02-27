@@ -214,6 +214,13 @@ class PostViewsTests(TestCase):
             Comment.objects.filter(text=self.comment.text).exists()
         )
 
+    def test_check_cache(self):
+        """Проверка кеша."""
+        response = self.guest_client.get(reverse("posts:index")).content
+        Post.objects.get(id=1).delete()
+        response2 = self.guest_client.get(reverse("posts:index")).content
+        self.assertEqual(response, response2)
+
 
 class PaginatorViewsTest(TestCase):
     """Пажинатор работает правильно."""

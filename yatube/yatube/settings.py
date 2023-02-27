@@ -34,6 +34,12 @@ ALLOWED_HOSTS = [
 
 # Application definition
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    }
+}
+
 INSTALLED_APPS = [
     "about.apps.AboutConfig",
     "core.apps.CoreConfig",

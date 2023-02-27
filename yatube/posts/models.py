@@ -1,3 +1,4 @@
+from core.models import CreatedModel
 from django.contrib.auth import get_user_model
 from django.db import models
 
@@ -13,8 +14,8 @@ class Group(models.Model):
         return self.title
 
 
-class Post(models.Model):
-    text = models.TextField()
+class Post(CreatedModel):
+    text = models.TextField("Текст поста", help_text="Текст нового поста")
     pub_date = models.DateTimeField(auto_now_add=True)
     author = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="posts"
@@ -35,7 +36,7 @@ class Post(models.Model):
         ordering = ["-pub_date"]
 
 
-class Comment(models.Model):
+class Comment(CreatedModel):
     post = models.ForeignKey(
         Post,
         blank=True,
@@ -46,8 +47,9 @@ class Comment(models.Model):
     author = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="comments"
     )
-    text = models.TextField("Текст комментария")
-    created = models.DateTimeField("Дата публикации", auto_now_add=True)
+    text = models.TextField(
+        "Текст комментария", help_text="Текст нового комментария"
+    )
 
     class Meta:
         ordering = ["-created"]

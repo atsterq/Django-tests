@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Зарегистрироваться{% endblock %}
 {% block content %}
+{% load user_filters %}
   <div class="row justify-content-center">
     <div class="col-md-8 p-5">
       <div class="card">
@@ -8,7 +9,6 @@
           Зарегистрироваться
         </div>
         <div class="card-body">
-        {% load user_filters %}
           {% if form.errors %}
             {% for field in form %}
               {% for error in field.errors %}            
