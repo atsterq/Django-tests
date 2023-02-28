@@ -9,6 +9,6 @@
       {% include "posts/includes/article.html" with show_author=True show_group=True %}
       {% if not forloop.last %}<hr>{% endif %}
     {% endfor %}
-    {% include 'posts/includes/paginator.html' %}
   {% endcache %}
+  {% include 'posts/includes/paginator.html' %}
 {% endblock %} 

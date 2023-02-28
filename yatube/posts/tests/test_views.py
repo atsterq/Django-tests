@@ -8,7 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from ..models import Comment, Group, Post
+from ..models import Comment, Follow, Group, Post
 
 User = get_user_model()
 
@@ -209,17 +209,35 @@ class PostViewsTests(TestCase):
         )
 
     def test_comments(self):
-        """Проверяем что комментарий появляется."""
+        """Комментарий появляется."""
         self.assertTrue(
             Comment.objects.filter(text=self.comment.text).exists()
         )
 
     def test_check_cache(self):
-        """Проверка кеша."""
+        """Тестирование кеша."""
         response = self.guest_client.get(reverse("posts:index")).content
         Post.objects.get(id=1).delete()
         response2 = self.guest_client.get(reverse("posts:index")).content
         self.assertEqual(response, response2)
+
+    def test_follow_page(self):
+        """Тестирование что подписки работают."""
+        response = self.authorized_client.get(reverse("posts:follow_index"))
+        self.assertEqual(len(response.context["page_obj"]), 0)
+        Follow.objects.get_or_create(user=self.user, author=self.post.author)
+        response2 = self.authorized_client.get(reverse("posts:follow_index"))
+        self.assertEqual(len(response2.context["page_obj"]), 1)
+        self.assertIn(self.post, response2.context["page_obj"])
+
+        not_following_user = User.objects.create(username="NoName")
+        self.authorized_client.force_login(not_following_user)
+        response3 = self.authorized_client.get(reverse("posts:follow_index"))
+        self.assertNotIn(self.post, response3.context["page_obj"])
+
+        Follow.objects.all().delete()
+        response4 = self.authorized_client.get(reverse("posts:follow_index"))
+        self.assertEqual(len(response4.context["page_obj"]), 0)
 
 
 class PaginatorViewsTest(TestCase):
