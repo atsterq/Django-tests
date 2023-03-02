@@ -4,10 +4,10 @@ import tempfile
 from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
-
 from posts.models import Comment, Follow, Group, Post
 
 User = get_user_model()
@@ -47,6 +47,7 @@ class PostViewsTests(TestCase):
             author=cls.user,
             text="Тестовый комментарий",
         )
+        cls.second_user = User.objects.create(username="second_user")
 
     @classmethod
     def tearDownClass(cls):
@@ -63,6 +64,7 @@ class PostViewsTests(TestCase):
             self.assertEqual(post.text, self.post.text)
             self.assertEqual(post.author, self.post.author)
             self.assertEqual(post.group.id, self.post.group.id)
+            self.assertEqual(post.image, self.post.image)
 
     def test_pages_uses_correct_template(self):
         """URL-адрес использует соответствующий шаблон."""
@@ -179,39 +181,23 @@ class PostViewsTests(TestCase):
         context = response.context["page_obj"].object_list
         self.assertNotIn(self.post, context)
 
-    def test_image_in_index_profile_group_list_context(self):
-        """Изображение передаётся на страницы группы, профиля и главной."""
-        templates = (
-            reverse("posts:index"),
-            reverse("posts:profile", kwargs={"username": self.post.author}),
-            reverse("posts:group_list", kwargs={"slug": self.group.slug}),
-        )
-        for url in templates:
-            with self.subTest(url):
-                response = self.authorized_client.get(url)
-                obj = response.context["page_obj"][0]
-                self.assertEqual(obj.image, self.post.image)
-
-    def test_image_in_post_detail_page(self):
-        """Изображение передается на страницу post_detail."""
-        response = self.guest_client.get(
-            reverse("posts:post_detail", kwargs={"post_id": self.post.id})
-        )
-        obj = response.context["post"]
-        self.assertEqual(obj.image, self.post.image)
-
-    def test_image_in_page(self):
-        """Проверяем что пост с картинкой создается в БД."""
-        self.assertTrue(
-            Post.objects.filter(
-                text="Тестовый пост", image="posts/small.gif"
-            ).exists()
-        )
-
     def test_comments(self):
-        """Комментарий появляется."""
+        """Тестирование комментария."""
+        form_data = {
+            "post": self.post,
+            "author": self.user,
+            "text": "Комментарий для теста комментариев",
+        }
+        self.authorized_client.post(
+            reverse("posts:add_comment", kwargs={"post_id": self.post.id}),
+            data=form_data,
+            follow=True,
+        )
         self.assertTrue(
-            Comment.objects.filter(text=self.comment.text).exists()
+            Comment.objects.filter(
+                text="Комментарий для теста комментариев",
+                author=self.user,
+            ).exists()
         )
 
     def test_check_cache(self):
@@ -220,24 +206,75 @@ class PostViewsTests(TestCase):
         Post.objects.get(id=1).delete()
         response2 = self.guest_client.get(reverse("posts:index")).content
         self.assertEqual(response, response2)
+        cache.clear()
+        cleared_cache_response = self.guest_client.get(
+            reverse("posts:index")
+        ).content
+        self.assertNotEqual(response, cleared_cache_response)
 
-    def test_follow_page(self):
-        """Тестирование что подписки работают."""
+    def test_follow_action(self):
+        """Тестирование подписки."""
         response = self.authorized_client.get(reverse("posts:follow_index"))
         self.assertEqual(len(response.context["page_obj"]), 0)
-        Follow.objects.get_or_create(user=self.user, author=self.post.author)
+        self.authorized_client.get(
+            reverse(
+                "posts:profile_follow",
+                kwargs={"username": self.second_user.username},
+            )
+        )
+        post2 = Post.objects.create(
+            author=self.second_user,
+            text="Тестовый пост2",
+        )
         response2 = self.authorized_client.get(reverse("posts:follow_index"))
         self.assertEqual(len(response2.context["page_obj"]), 1)
-        self.assertIn(self.post, response2.context["page_obj"])
+        self.assertIn(post2, response2.context["page_obj"])
 
-        not_following_user = User.objects.create(username="NoName")
-        self.authorized_client.force_login(not_following_user)
-        response3 = self.authorized_client.get(reverse("posts:follow_index"))
-        self.assertNotIn(self.post, response3.context["page_obj"])
+    def test_unfollow_action(self):
+        """Тестирование отписки."""
+        Follow.objects.create(user=self.user, author=self.second_user)
+        post2 = Post.objects.create(
+            author=self.second_user,
+            text="Тестовый пост2",
+        )
+        response = self.authorized_client.get(reverse("posts:follow_index"))
+        self.assertEqual(len(response.context["page_obj"]), 1)
+        self.authorized_client.get(
+            reverse(
+                "posts:profile_unfollow",
+                kwargs={"username": self.second_user.username},
+            )
+        )
+        response2 = self.authorized_client.get(reverse("posts:follow_index"))
+        self.assertEqual(len(response2.context["page_obj"]), 0)
+        self.assertNotIn(post2, response2.context["page_obj"])
 
+    def test_follow_page_for_follower(self):
+        """Тестирование ленты подписанного пользователя."""
         Follow.objects.all().delete()
-        response4 = self.authorized_client.get(reverse("posts:follow_index"))
-        self.assertEqual(len(response4.context["page_obj"]), 0)
+        new_post = Post.objects.create(
+            author=self.second_user,
+            text="Тестирование ленты",
+        )
+        Follow.objects.create(user=self.user, author=self.second_user)
+        response = self.authorized_client.get(
+            reverse("posts:follow_index")
+        ).context["page_obj"]
+        self.assertIn(new_post, response)
+
+    def test_follow_page_for_non_follower(self):
+        """Тестирование ленты неподписанного пользователя."""
+        Follow.objects.all().delete()
+        new_user = User.objects.create(username="new_user")
+        new_post = Post.objects.create(
+            author=self.second_user,
+            text="Тестирование ленты",
+        )
+        Follow.objects.create(user=new_user, author=self.second_user)
+        response = self.authorized_client.get(
+            reverse("posts:follow_index")
+        ).context["page_obj"]
+        self.assertNotIn(new_post, response)
 
 
 class PaginatorViewsTest(TestCase):

@@ -3,12 +3,12 @@
 {% block content %}
   {% include 'posts/includes/switcher.html' %}
   {% load cache %}
-  {% cache 20 index_page %}
+  {% cache 20 index_page page_obj %}
   <h1>{{ text }}</h1>
     {% for post in page_obj %}
       {% include "posts/includes/article.html" with show_author=True show_group=True %}
       {% if not forloop.last %}<hr>{% endif %}
     {% endfor %}
-  {% endcache %}
   {% include 'posts/includes/paginator.html' %}
+  {% endcache %}
 {% endblock %} 
