@@ -214,44 +214,35 @@ class PostViewsTests(TestCase):
 
     def test_follow_action(self):
         """Тестирование подписки."""
-        response = self.authorized_client.get(reverse("posts:follow_index"))
-        self.assertEqual(len(response.context["page_obj"]), 0)
         self.authorized_client.get(
             reverse(
                 "posts:profile_follow",
                 kwargs={"username": self.second_user.username},
             )
         )
-        post2 = Post.objects.create(
-            author=self.second_user,
-            text="Тестовый пост2",
+        self.assertTrue(
+            Follow.objects.filter(
+                user=self.user, author=self.second_user
+            ).exists()
         )
-        response2 = self.authorized_client.get(reverse("posts:follow_index"))
-        self.assertEqual(len(response2.context["page_obj"]), 1)
-        self.assertIn(post2, response2.context["page_obj"])
 
     def test_unfollow_action(self):
         """Тестирование отписки."""
         Follow.objects.create(user=self.user, author=self.second_user)
-        post2 = Post.objects.create(
-            author=self.second_user,
-            text="Тестовый пост2",
-        )
-        response = self.authorized_client.get(reverse("posts:follow_index"))
-        self.assertEqual(len(response.context["page_obj"]), 1)
         self.authorized_client.get(
             reverse(
                 "posts:profile_unfollow",
                 kwargs={"username": self.second_user.username},
             )
         )
-        response2 = self.authorized_client.get(reverse("posts:follow_index"))
-        self.assertEqual(len(response2.context["page_obj"]), 0)
-        self.assertNotIn(post2, response2.context["page_obj"])
+        self.assertFalse(
+            Follow.objects.filter(
+                user=self.user, author=self.second_user
+            ).exists()
+        )
 
     def test_follow_page_for_follower(self):
         """Тестирование ленты подписанного пользователя."""
-        Follow.objects.all().delete()
         new_post = Post.objects.create(
             author=self.second_user,
             text="Тестирование ленты",
@@ -264,7 +255,6 @@ class PostViewsTests(TestCase):
 
     def test_follow_page_for_non_follower(self):
         """Тестирование ленты неподписанного пользователя."""
-        Follow.objects.all().delete()
         new_user = User.objects.create(username="new_user")
         new_post = Post.objects.create(
             author=self.second_user,
